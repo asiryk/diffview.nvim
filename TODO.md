@@ -55,23 +55,15 @@ does not reorder the panel.
 
 ## Neovim 0.12 modernization
 
-Floor is now 0.12 (`bootstrap.lua:27`, `health.lua:27`, README). These all
-still work on 0.12.4 — deprecated, not broken — so none of it is urgent.
+Done — floor is 0.12 (`bootstrap.lua:27`, `health.lua:27`, README) and no
+deprecated API calls remain. For reference, the two non-obvious traps hit
+while porting:
 
-### 3. `nvim_buf_add_highlight` -> `nvim_buf_set_extmark`
-`renderer.lua:515`. Deprecated in 0.11. Single site, but it is inside the
-render loop over `hl_data`, so keep the namespace handling identical and
-re-check `M.last_draw_time` after.
-
-### 4. `vim.validate` -> new signature
-Deprecated in 0.11 (silent — emits no warning on 0.12.4).
-Sites: `ui/panel.lua:165`, `:171`, `:182`, and `vcs/adapters/git/init.lua:519`.
-The panel ones go through a local `valid_enum()` helper that returns old-style
-spec tables, so the helper has to be reworked too. Invasive for zero runtime
-gain — lowest priority here.
-
-### 5. `nvim_get_option_info` -> `nvim_get_option_info2`
-`utils.lua:368`. One line.
+- `nvim_buf_add_highlight` clamped out-of-range columns; `nvim_buf_set_extmark`
+  *raises* on them. The port needs `strict = false` to keep the old behaviour
+  (`renderer.lua:515`).
+- The new `vim.validate` signature rejects the old shorthand type names
+  (`"n"`, `"s"`, ...) — they have to be spelled out (`"number"`, `"string"`).
 
 ## Reproducing the measurements
 
