@@ -279,6 +279,17 @@ end
 
 ---Sync the scrollbind.
 function Layout:sync_scroll()
+  -- The open path is async, so a view can be torn down while a scheduled
+  -- `sync_scroll()` is still queued against its windows. Every call below
+  -- would then raise "Invalid window id", which unwinds the whole coroutine
+  -- chain. There is nothing left to sync in that case, so bail out.
+  for _, win in ipairs(self.windows) do
+    if not win:is_valid() then return end
+  end
+
+  local main_win = self:get_main_win()
+  if not (main_win and main_win:is_valid()) then return end
+
   local curwin = api.nvim_get_current_win()
   local target, max = nil, 0
 
@@ -287,7 +298,8 @@ function Layout:sync_scroll()
     if lcount > max then target, max = win, lcount end
   end
 
-  local main_win = self:get_main_win()
+  if not target then return end
+
   local cursor = api.nvim_win_get_cursor(main_win.id)
 
   for _, win in ipairs(self.windows) do
