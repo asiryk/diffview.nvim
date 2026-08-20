@@ -24,8 +24,8 @@ local function lualib_available(name)
 end
 
 function M.check()
-  if vim.fn.has("nvim-0.10") == 0 then
-    health.error("Diffview.nvim requires Neovim 0.10.0+")
+  if vim.fn.has("nvim-0.12") == 0 then
+    health.error("Diffview.nvim requires Neovim 0.12.0+")
   end
 
   -- LuaJIT

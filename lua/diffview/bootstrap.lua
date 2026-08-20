@@ -24,8 +24,8 @@ _G.DiffviewGlobal = {
   bootstrap_ok = false,
 }
 
-if vim.fn.has("nvim-0.10") ~= 1 then
-  err("Minimum required version is Neovim 0.10.0! Cannot continue.")
+if vim.fn.has("nvim-0.12") ~= 1 then
+  err("Minimum required version is Neovim 0.12.0! Cannot continue.")
   return false
 end
 
