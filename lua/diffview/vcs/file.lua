@@ -15,7 +15,6 @@ local pl = lazy.access(utils, "path") ---@type PathLib
 local api = vim.api
 local M = {}
 
-local HAS_NVIM_0_10 = vim.fn.has("nvim-0.10") == 1
 
 ---@alias git.FileDataProducer fun(kind: vcs.FileKind, path: string, pos: "left"|"right"): string[]
 
@@ -280,7 +279,7 @@ File.create_buffer = async.wrap(function(self, callback)
   end
 
   for option, value in pairs(bufopts) do
-    api.nvim_buf_set_option(self.bufnr, option, value)
+    api.nvim_set_option_value(option, value, { buf = self.bufnr })
   end
 
   local last_modifiable = vim.bo[self.bufnr].modifiable
@@ -357,12 +356,7 @@ function File:attach_buffer(force, opt)
 
       -- Diagnostics
       if state.disable_diagnostics then
-        if HAS_NVIM_0_10 then
-          vim.diagnostic.enable(false, { bufnr = self.bufnr })
-        else
-          ---@diagnostic disable-next-line: deprecated
-          vim.diagnostic.disable(self.bufnr)
-        end
+        vim.diagnostic.enable(false, { bufnr = self.bufnr })
       end
 
       File.attached[self.bufnr] = state
@@ -389,12 +383,7 @@ function File:detach_buffer()
 
       -- Diagnostics
       if state.disable_diagnostics then
-        if HAS_NVIM_0_10 then
-          vim.diagnostic.enable(true, { bufnr = self.bufnr })
-        else
-          ---@diagnostic disable-next-line: param-type-mismatch
-          vim.diagnostic.enable(self.bufnr)
-        end
+        vim.diagnostic.enable(true, { bufnr = self.bufnr })
       end
 
       File.attached[self.bufnr] = nil
@@ -432,7 +421,7 @@ function File._get_null_buffer()
   if not api.nvim_buf_is_loaded(File.NULL_FILE.bufnr or -1) then
     local bn = api.nvim_create_buf(false, false)
     for option, value in pairs(File.bufopts) do
-      api.nvim_buf_set_option(bn, option, value)
+      api.nvim_set_option_value(option, value, { buf = bn })
     end
 
     local bufname = "diffview://null"

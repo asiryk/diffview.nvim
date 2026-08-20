@@ -20,7 +20,7 @@ end)
 
 ---@return number # Current time (ms)
 function M.now()
-  return vim.loop.hrtime() / 1000000
+  return vim.uv.hrtime() / 1000000
 end
 
 ---@param msg string|string[]
@@ -1322,7 +1322,7 @@ function M.merge_sort(t, comparator)
 end
 
 --- @diagnostic disable-next-line: deprecated
-M.islist = vim.fn.has("nvim-0.10") == 1 and vim.islist or vim.tbl_islist
+M.islist = vim.islist
 
 --- @param t table
 --- @return any[]
