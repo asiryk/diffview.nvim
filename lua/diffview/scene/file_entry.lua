@@ -317,6 +317,7 @@ function FileEntry.with_layout(layout_class, opt)
       commit = opt.commit,
       get_data = opt.get_data,
       rev = rev,
+      binary = opt.binary,
       nulled = utils.sate(
         opt.nulled,
         select(2, pcall(layout_class.should_null, rev, opt.status, symbol))

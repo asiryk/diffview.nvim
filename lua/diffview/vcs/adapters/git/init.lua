@@ -166,18 +166,33 @@ function GitAdapter.get_repo_paths(path_args, cpath)
   return paths, top_indicators
 end
 
+---Git-dir resolved as a side effect of `get_toplevel()`, keyed by toplevel.
+---`GitAdapter:get_dir()` consumes this so that discovering a repo costs one
+---`rev-parse` instead of two.
+---@type table<string, string>
+local gitdir_memo = {}
+
 ---Get the git toplevel directory from a path to file or directory
 ---@param path string
 ---@return string?
 local function get_toplevel(path)
+  -- `rev-parse` answers both queries in one invocation, in flag order.
   local out, code = utils.job(utils.flatten({
     config.get_config().git_cmd,
-    { "rev-parse", "--path-format=absolute", "--show-toplevel" },
+    { "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir" },
   }), path)
   if code ~= 0 then
     return nil
   end
-  return out[1] and vim.trim(out[1])
+
+  local toplevel = out[1] and vim.trim(out[1])
+  local gitdir = out[2] and vim.trim(out[2])
+
+  if toplevel and gitdir and gitdir ~= "" then
+    gitdir_memo[toplevel] = gitdir
+  end
+
+  return toplevel
 end
 
 ---Try to find the top-level of a working tree by using the given indicative
@@ -275,6 +290,15 @@ function GitAdapter:get_log_args(args)
 end
 
 function GitAdapter:get_dir(path)
+  -- Consume anything `get_toplevel()` already resolved. Single-use, so a later
+  -- lookup (after a worktree switch, say) still asks Git.
+  local memo = gitdir_memo[path]
+
+  if memo then
+    gitdir_memo[path] = nil
+    return memo
+  end
+
   local out, code = self:exec_sync({ "rev-parse", "--path-format=absolute", "--git-dir" }, path)
   if code ~= 0 then
     return nil
@@ -1292,8 +1316,21 @@ function GitAdapter:diffview_options(argo)
   return {left = left, right = right, options = options}
 end
 
+---How long a resolved HEAD stays reusable (ns). A single view update asks for
+---HEAD several times; this collapses those into one spawn while staying orders
+---of magnitude below any interval at which HEAD realistically moves.
+local HEAD_REV_TTL = 50 * 1e6
+
 ---@return Rev?
 function GitAdapter:head_rev()
+  local now = uv.hrtime()
+
+  -- Rebuild the Rev from the cached hash rather than handing out a shared
+  -- object: callers store what they get (e.g. `DiffView.left`).
+  if self._head_rev_hash and (now - self._head_rev_at) < HEAD_REV_TTL then
+    return GitRev(RevType.COMMIT, self._head_rev_hash, true)
+  end
+
   local out, code = self:exec_sync(
     { "rev-parse", "HEAD", "--" },
     { cwd = self.ctx.toplevel, retry = 2, fail_on_empty = true }
@@ -1304,6 +1341,9 @@ function GitAdapter:head_rev()
   end
 
   local s = vim.trim(out[1]):gsub("^%^", "")
+
+  self._head_rev_hash = s
+  self._head_rev_at = now
 
   return GitRev(RevType.COMMIT, s, true)
 end
@@ -1684,13 +1724,18 @@ function GitAdapter:show_untracked(opt)
     end
   end
 
-  -- Fall back to checking git config
-  local out = self:exec_sync(
-    { "config", "status.showUntrackedFiles" },
-    { cwd = self.ctx.toplevel, silent = true }
-  )
+  -- Fall back to checking git config. This is a per-repo setting that does not
+  -- meaningfully change mid-session, so it's only worth asking Git once.
+  if self._show_untracked_cfg == nil then
+    local out = self:exec_sync(
+      { "config", "status.showUntrackedFiles" },
+      { cwd = self.ctx.toplevel, silent = true }
+    )
 
-  return vim.trim(out[1] or "") ~= "no"
+    self._show_untracked_cfg = vim.trim(out[1] or "")
+  end
+
+  return self._show_untracked_cfg ~= "no"
 end
 
 GitAdapter.tracked_files = async.wrap(function(self, left, right, args, kind, opt, callback)
@@ -1775,12 +1820,18 @@ GitAdapter.tracked_files = async.wrap(function(self, left, right, args, kind, op
       stats = nil
     end
 
+    -- Git writes "-\t-" instead of line counts when either side of the diff is
+    -- binary. Recording that verdict here means `is_binary()` never has to
+    -- shell out per file later -- that call is synchronous and blocks the UI.
+    local binary = numstat_out[i]:match("^%-%s+%-%s") ~= nil
+
     if not (status == "U" and kind == "staged") then
       table.insert(data, {
         status = status,
         name = name,
         oldname = oldname,
         stats = stats,
+        binary = binary,
       })
     end
 
@@ -1818,6 +1869,7 @@ GitAdapter.tracked_files = async.wrap(function(self, left, right, args, kind, op
       oldpath = v.oldname,
       status = v.status,
       stats = v.stats,
+      binary = v.binary,
       kind = kind,
       revs = {
         a = left,
@@ -1838,6 +1890,23 @@ GitAdapter.tracked_files = async.wrap(function(self, left, right, args, kind, op
 
   callback(nil, files, conflicts)
 end)
+
+---Check whether a file on disk is binary, applying Git's own heuristic: a NUL
+---byte inside the first 8k of content marks it binary. Saves a `git grep`
+---round-trip for untracked files, which have no diff to read the verdict from.
+---@param path string
+---@return boolean?
+local function disk_file_is_binary(path)
+  local fd = uv.fs_open(path, "r", 438)
+  if not fd then return nil end
+
+  local ok, data = pcall(uv.fs_read, fd, 8192, 0)
+  uv.fs_close(fd)
+
+  if not ok or type(data) ~= "string" then return nil end
+
+  return data:find("\0", 1, true) ~= nil
+end
 
 GitAdapter.untracked_files = async.wrap(function(self, left, right, opt, callback)
   local job = Job({
@@ -1867,6 +1936,7 @@ GitAdapter.untracked_files = async.wrap(function(self, left, right, opt, callbac
       adapter = self,
       path = s,
       status = "?",
+      binary = disk_file_is_binary(pl:join(self.ctx.toplevel, s)),
       kind = "working",
       revs = {
         a = left,
