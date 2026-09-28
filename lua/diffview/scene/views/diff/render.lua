@@ -46,6 +46,27 @@ local function render_file(comp, show_path, depth)
   comp:ln()
 end
 
+---Append the section's summed line stats, like GitLab's MR header. Files
+---without numstat data (untracked, binary, conflict counts) are skipped.
+---@param comp RenderComponent
+---@param files FileEntry[]
+local function render_stats_total(comp, files)
+  local additions, deletions, counted = 0, 0, false
+
+  for _, file in ipairs(files) do
+    if file.stats and file.stats.additions then
+      additions = additions + file.stats.additions
+      deletions = deletions + file.stats.deletions
+      counted = true
+    end
+  end
+
+  if counted then
+    comp:add_text(" +" .. additions, "DiffviewFilePanelInsertions")
+    comp:add_text(" -" .. deletions, "DiffviewFilePanelDeletions")
+  end
+end
+
 ---@param comp RenderComponent
 local function render_file_list(comp)
   for _, file_comp in ipairs(comp.components) do
@@ -171,6 +192,7 @@ return function(panel)
     comp = panel.components.working.title.comp
     comp:add_text("Changes ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.files.working .. ")", "DiffviewFilePanelCounter")
+    render_stats_total(comp, panel.files.working)
     comp:ln()
 
     render_files(panel.listing_style, panel.components.working.files.comp)
@@ -181,6 +203,7 @@ return function(panel)
     comp = panel.components.staged.title.comp
     comp:add_text("Staged changes ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.files.staged .. ")", "DiffviewFilePanelCounter")
+    render_stats_total(comp, panel.files.staged)
     comp:ln()
 
     render_files(panel.listing_style, panel.components.staged.files.comp)
