@@ -64,6 +64,19 @@ local function render_stats_total(comp, files)
   if counted then
     comp:add_text(" +" .. additions, "DiffviewFilePanelInsertions")
     comp:add_text(" -" .. deletions, "DiffviewFilePanelDeletions")
+
+    -- The net only says something new when both sides are non-zero.
+    if additions > 0 and deletions > 0 then
+      local net = additions - deletions
+      comp:add_text(" = ", "DiffviewDim1")
+      if net > 0 then
+        comp:add_text("+" .. net, "DiffviewFilePanelInsertions")
+      elseif net < 0 then
+        comp:add_text(tostring(net), "DiffviewFilePanelDeletions")
+      else
+        comp:add_text("±0", "DiffviewDim1")
+      end
+    end
   end
 end
 
