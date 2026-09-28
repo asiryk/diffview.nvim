@@ -1,5 +1,6 @@
 local config = require("diffview.config")
 local hl = require("diffview.hl")
+local stats_total = require("diffview.scene.views.stats_total")
 local utils = require("diffview.utils")
 
 local pl = utils.path
@@ -44,40 +45,6 @@ local function render_file(comp, show_path, depth)
   end
 
   comp:ln()
-end
-
----Append the section's summed line stats, like GitLab's MR header. Files
----without numstat data (untracked, binary, conflict counts) are skipped.
----@param comp RenderComponent
----@param files FileEntry[]
-local function render_stats_total(comp, files)
-  local additions, deletions, counted = 0, 0, false
-
-  for _, file in ipairs(files) do
-    if file.stats and file.stats.additions then
-      additions = additions + file.stats.additions
-      deletions = deletions + file.stats.deletions
-      counted = true
-    end
-  end
-
-  if counted then
-    comp:add_text(" +" .. additions, "DiffviewFilePanelInsertions")
-    comp:add_text(" -" .. deletions, "DiffviewFilePanelDeletions")
-
-    -- The net only says something new when both sides are non-zero.
-    if additions > 0 and deletions > 0 then
-      local net = additions - deletions
-      comp:add_text(" = ", "DiffviewDim1")
-      if net > 0 then
-        comp:add_text("+" .. net, "DiffviewFilePanelInsertions")
-      elseif net < 0 then
-        comp:add_text(tostring(net), "DiffviewFilePanelDeletions")
-      else
-        comp:add_text("±0", "DiffviewDim1")
-      end
-    end
-  end
 end
 
 ---@param comp RenderComponent
@@ -205,7 +172,7 @@ return function(panel)
     comp = panel.components.working.title.comp
     comp:add_text("Changes ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.files.working .. ")", "DiffviewFilePanelCounter")
-    render_stats_total(comp, panel.files.working)
+    stats_total.render(comp, panel.files.working)
     comp:ln()
 
     render_files(panel.listing_style, panel.components.working.files.comp)
@@ -216,7 +183,7 @@ return function(panel)
     comp = panel.components.staged.title.comp
     comp:add_text("Staged changes ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.files.staged .. ")", "DiffviewFilePanelCounter")
-    render_stats_total(comp, panel.files.staged)
+    stats_total.render(comp, panel.files.staged)
     comp:ln()
 
     render_files(panel.listing_style, panel.components.staged.files.comp)

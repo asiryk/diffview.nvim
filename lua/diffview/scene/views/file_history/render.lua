@@ -1,6 +1,7 @@
 local PerfTimer = require("diffview.perf").PerfTimer
 local config = require("diffview.config")
 local hl = require("diffview.hl")
+local stats_total = require("diffview.scene.views.stats_total")
 local utils = require("diffview.utils")
 
 local fmt = string.format
@@ -252,6 +253,7 @@ return {
     comp:add_line()
     comp:add_text("File History ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.entries .. ")", "DiffviewFilePanelCounter")
+    stats_total.render(comp, panel.entries)
 
     if panel.updating then
       comp:add_text(" (Updating...)", "DiffviewDim1")
