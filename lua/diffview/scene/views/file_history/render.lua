@@ -251,7 +251,7 @@ return {
     -- title
     comp = panel.components.log.title.comp
     comp:add_line()
-    comp:add_text("File History ", "DiffviewFilePanelTitle")
+    comp:add_text("History ", "DiffviewFilePanelTitle")
     comp:add_text("(" .. #panel.entries .. ")", "DiffviewFilePanelCounter")
     stats_total.render(comp, panel.entries)
 
