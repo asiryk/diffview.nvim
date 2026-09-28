@@ -3,17 +3,7 @@
 ## What this repo is
 
 A personal fork of `sindrets/diffview.nvim`. Upstream HEAD is from 2024-06 and
-is effectively unmaintained; this fork exists to tune it for a single
-environment — **Neovim 0.12, macOS, brew git** — and is free to drop
-portability that upstream has to keep.
-
-Fork remote is `fork` (`asiryk/diffview.nvim`), default branch `main`.
-`origin` still points at upstream, so pull upstream changes from `origin` and
-push work to `fork`.
-
-Open work and the performance context live in `TODO.md`. Read it before
-starting perf work — it records where the remaining latency actually is, and
-how to measure it without re-deriving the harness.
+is effectively unmaintained.
 
 ## Commands
 
